@@ -1,0 +1,237 @@
+library(shiny)
+library(ggplot2)
+library(dplyr)
+
+ui <- fluidPage(
+tags$head(
+tags$style(HTML("
+body { background: linear-gradient(135deg,#1e3c72,#2a5298); font-family: Arial; color:white;}
+.login-box { width:320px; margin:auto; margin-top:120px; background:white; color:black; padding:20px; border-radius:10px; text-align:center;}
+.card-container { display:flex; justify-content:center; gap:40px; margin-top:100px;}
+.card { background:white; color:black; padding:30px; border-radius:10px; width:200px; text-align:center;}
+.sidebar { position:fixed; width:220px; height:100%; background:#1e2a38; padding:20px;}
+.sidebar a { display:block; color:white; padding:10px; cursor:pointer;}
+.main { margin-left:240px; padding:20px; background:#f4f6f9; min-height:100vh; color:black;}
+.box { background:white; padding:20px; border-radius:10px; margin-top:20px;}
+img { border-radius:10px; }
+"))
+),
+
+uiOutput("main_ui")
+)
+
+server <- function(input, output, session) {
+
+set.seed(123)
+
+# ---------------- STUDENT DATA ----------------
+branches <- c("CSE","ECE","EEE","MECH","CIVIL","IT","AIDS","AIML")
+years <- c("1st","2nd","3rd","4th")
+
+student_data <- data.frame(
+ID = paste0("STU", sprintf("%04d",1:1250)),
+Name = paste("Student",1:1250),
+Branch = sample(branches,1250,TRUE),
+Year = sample(years,1250,TRUE),
+Passed = sample(3:6,1250,TRUE),
+Failed = sample(0:3,1250,TRUE)
+)
+
+student_data$Percentage <- round(
+student_data$Passed/(student_data$Passed+student_data$Failed)*100,2)
+
+# ---------------- FACULTY DATA ----------------
+faculty_data <- data.frame(
+Name = paste("Dr.", paste("Faculty",1:30)),
+Email = paste0("faculty",1:30,"@college.com"),
+Password = "faculty123",
+stringsAsFactors = FALSE
+)
+
+# ---------------- STATES ----------------
+page <- reactiveVal("home")
+logged_faculty <- reactiveVal(NULL)
+logged_student <- reactiveVal(NULL)
+
+# ---------------- NAVIGATION ----------------
+observeEvent(input$admin_btn,{ page("admin_login") })
+observeEvent(input$faculty_btn,{ page("faculty_login") })
+observeEvent(input$student_btn,{ page("student_login") })
+observeEvent(input$back_home,{ page("home") })
+
+# ---------------- LOGIN ----------------
+
+observeEvent(input$admin_login_btn,{
+if(input$admin_user=="admin@gmail.com" && input$admin_pass=="admin123"){
+page("admin_dashboard")
+} else showNotification("Invalid Admin ❌")
+})
+
+observeEvent(input$faculty_login_btn,{
+f <- faculty_data[
+faculty_data$Email==input$fac_email &
+faculty_data$Password==input$fac_pass,]
+
+if(nrow(f)==1){
+logged_faculty(f)
+page("faculty_dashboard")
+} else showNotification("Invalid Faculty ❌")
+})
+
+observeEvent(input$student_login_btn,{
+s <- student_data[
+student_data$ID==input$stu_id &
+substr(student_data$ID,nchar(student_data$ID)-3,nchar(student_data$ID))==input$stu_pass,]
+
+if(nrow(s)==1){
+logged_student(s)
+page("student_dashboard")
+} else showNotification("Invalid Student ❌")
+})
+
+observeEvent(input$logout,{ page("home") })
+
+# ---------------- UI ----------------
+output$main_ui <- renderUI({
+
+if(page()=="home"){
+div(class="card-container",
+actionButton("admin_btn",NULL,
+div(class="card",
+tags$img(src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png",width="80"),
+h4("Admin")
+)),
+
+actionButton("faculty_btn",NULL,
+div(class="card",
+tags$img(src="https://cdn-icons-png.flaticon.com/512/1995/1995574.png",width="80"),
+h4("Faculty")
+)),
+
+actionButton("student_btn",NULL,
+div(class="card",
+tags$img(src="https://cdn-icons-png.flaticon.com/512/2922/2922510.png",width="80"),
+h4("Student")
+))
+)
+}
+
+# ADMIN LOGIN
+else if(page()=="admin_login"){
+div(class="login-box",
+tags$img(src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png",width="80"),
+h3("Admin Login"),
+textInput("admin_user","Email"),
+passwordInput("admin_pass","Password"),
+actionButton("admin_login_btn","Login"),
+actionButton("back_home","Back")
+)
+}
+
+# FACULTY LOGIN
+else if(page()=="faculty_login"){
+div(class="login-box",
+tags$img(src="https://cdn-icons-png.flaticon.com/512/1995/1995574.png",width="80"),
+h3("Faculty Login"),
+textInput("fac_email","Email"),
+passwordInput("fac_pass","Password"),
+actionButton("faculty_login_btn","Login"),
+actionButton("back_home","Back")
+)
+}
+
+# STUDENT LOGIN
+else if(page()=="student_login"){
+div(class="login-box",
+tags$img(src="https://cdn-icons-png.flaticon.com/512/2922/2922510.png",width="80"),
+h3("Student Login"),
+textInput("stu_id","Student ID"),
+passwordInput("stu_pass","Password"),
+actionButton("student_login_btn","Login"),
+actionButton("back_home","Back")
+)
+}
+
+# ADMIN DASHBOARD
+else if(page()=="admin_dashboard"){
+tagList(
+div(class="sidebar",
+tags$img(src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png",width="80"),
+h3("Admin"),
+actionLink("logout","Logout")
+),
+div(class="main",
+h2("Admin Dashboard"),
+
+textInput("search","Search Student"),
+tableOutput("admin_table"),
+
+plotOutput("chart1"),
+plotOutput("chart2")
+)
+)
+}
+
+# FACULTY DASHBOARD
+else if(page()=="faculty_dashboard"){
+tagList(
+div(class="sidebar",
+tags$img(src="https://cdn-icons-png.flaticon.com/512/1995/1995574.png",width="80"),
+h3("Faculty"),
+actionLink("logout","Logout")
+),
+div(class="main",
+h2(paste("Welcome", logged_faculty()$Name)),
+tableOutput("faculty_table"),
+plotOutput("fac_plot")
+)
+)
+}
+
+# STUDENT DASHBOARD
+else if(page()=="student_dashboard"){
+s <- logged_student()
+div(class="login-box",
+tags$img(src="https://cdn-icons-png.flaticon.com/512/2922/2922510.png",width="80"),
+h3(s$Name),
+p(paste("ID:", s$ID)),
+p(paste("Branch:", s$Branch)),
+p(paste("Year:", s$Year)),
+h4(paste("Percentage:", s$Percentage)),
+actionButton("logout","Logout")
+)
+}
+})
+
+# SEARCH
+filtered_students <- reactive({
+if(is.null(input$search) || input$search=="") return(student_data)
+student_data[grepl(input$search, student_data$Name, ignore.case=TRUE),]
+})
+
+output$admin_table <- renderTable({
+filtered_students()
+})
+
+output$faculty_table <- renderTable({
+head(student_data,20)
+})
+
+output$fac_plot <- renderPlot({
+ggplot(student_data, aes(Branch)) + geom_bar(fill="purple")
+})
+
+output$chart1 <- renderPlot({
+ggplot(student_data, aes(Percentage)) + geom_histogram(bins=10)
+})
+
+output$chart2 <- renderPlot({
+df <- data.frame(
+Type=c("Passed","Failed"),
+Count=c(sum(student_data$Passed), sum(student_data$Failed))
+)
+ggplot(df, aes(Type, Count)) + geom_bar(stat="identity")
+})
+}
+
+shinyApp(ui, server)
