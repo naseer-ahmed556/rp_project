@@ -1,1 +1,1 @@
-# rp_project
+# R programming mini project
